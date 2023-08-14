@@ -182,7 +182,7 @@ ErrorExit:
 	return ret;
 }
 
-LPSTR CreateOAuthPram(const std::map<std::string, std::string>& m, LPCSTR consumer_secret, LPCSTR accesstoken_secret)
+LPSTR CreateOAuthPram(const std::map<std::string, std::string>& m, LPCSTR consumer_secret, LPCSTR access_token_secret)
 {
 	std::string base;
 	std::string parameter;
@@ -225,7 +225,7 @@ LPSTR CreateOAuthPram(const std::map<std::string, std::string>& m, LPCSTR consum
 	std::string key = "";
 	key += consumer_secret;
 	key += "&";
-	key += accesstoken_secret;
+	key += access_token_secret;
 
 	LPSTR lpszOAuthParam = 0;
 	std::string strOAuthSignature;
