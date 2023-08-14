@@ -53,25 +53,25 @@ LPSTR CreateRandomString()
 	return 0;
 }
 
-int UrlEncode(LPCSTR lpszSrc, LPSTR lpszDst)
+int UrlEncode(LPCSTR src, LPSTR dst)
 {
 	DWORD idst = 0;
-	for (DWORD isrc = 0; lpszSrc[isrc] != '\0'; ++isrc) {
+	for (DWORD isrc = 0; src[isrc] != '\0'; ++isrc) {
 		LPCSTR lpszUnreservedCharacters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-		if (StrChrA(lpszUnreservedCharacters, lpszSrc[isrc])) {
-			if (lpszDst) lpszDst[idst] = (WCHAR)lpszSrc[isrc];
+		if (StrChrA(lpszUnreservedCharacters, src[isrc])) {
+			if (dst) dst[idst] = (WCHAR)src[isrc];
 			++idst;
 		}
-		else if (lpszSrc[isrc] == ' ') {
-			if (lpszDst) lpszDst[idst] = L'+';
+		else if (src[isrc] == ' ') {
+			if (dst) dst[idst] = L'+';
 			++idst;
 		}
 		else {
-			if (lpszDst) wsprintfA(&lpszDst[idst], "%%%02X", lpszSrc[isrc] & 0xFF);
+			if (dst) wsprintfA(&dst[idst], "%%%02X", src[isrc] & 0xFF);
 			idst += 3;
 		}
 	}
-	if (lpszDst) lpszDst[idst] = L'\0';
+	if (dst) dst[idst] = L'\0';
 	++idst;
 	return idst;
 }
@@ -89,7 +89,7 @@ LPSTR CreateURLEncodeStrng(LPCSTR src)
 	return 0;
 }
 
-BOOL GetHMAC_SHA1(LPCSTR source, LPCSTR key, LPSTR output, DWORD size)
+BOOL GetHMAC_SHA1(LPCSTR src, LPCSTR key, LPSTR output, DWORD size)
 {
 	BOOL ret = FALSE;
 
@@ -140,7 +140,7 @@ BOOL GetHMAC_SHA1(LPCSTR source, LPCSTR key, LPSTR output, DWORD size)
 		goto ErrorExit;
 	}
 
-	if (!CryptHashData(hHmacHash, (LPCBYTE)source, lstrlenA(source), 0)) {
+	if (!CryptHashData(hHmacHash, (LPCBYTE)src, lstrlenA(src), 0)) {
 		goto ErrorExit;
 	}
 
@@ -182,7 +182,7 @@ ErrorExit:
 	return ret;
 }
 
-LPSTR CreateOAuthPram(std::map<std::string, std::string>& m, LPCSTR consumer_secret, LPCSTR accesstoken_secret)
+LPSTR CreateOAuthPram(const std::map<std::string, std::string>& m, LPCSTR consumer_secret, LPCSTR accesstoken_secret)
 {
 	std::string base;
 	std::string parameter;
@@ -204,20 +204,20 @@ LPSTR CreateOAuthPram(std::map<std::string, std::string>& m, LPCSTR consumer_sec
 		}
 	}
 
-	std::string source = "POST&";
+	std::string src = "POST&";
 	{
 		LPCSTR url = "https://api.twitter.com/2/tweets";
 		LPSTR encoded = CreateURLEncodeStrng(url);
 		if (encoded) {
-			source += encoded;
-			source += "&";
+			src += encoded;
+			src += "&";
 			GlobalFree(encoded);
 		}
 	}
 	{
 		LPSTR encoded = CreateURLEncodeStrng(base.c_str());
 		if (encoded) {
-			source += encoded;
+			src += encoded;
 			GlobalFree(encoded);
 		}
 	}
@@ -231,7 +231,7 @@ LPSTR CreateOAuthPram(std::map<std::string, std::string>& m, LPCSTR consumer_sec
 	std::string strOAuthSignature;
 	{
 		CHAR output[1024] = {};
-		if (GetHMAC_SHA1(source.c_str(), key.c_str(), output, _countof(output)) == TRUE) {
+		if (GetHMAC_SHA1(src.c_str(), key.c_str(), output, _countof(output)) == TRUE) {
 			LPSTR encoded = CreateURLEncodeStrng(output);
 			if (encoded) {
 				strOAuthSignature = encoded;
@@ -336,7 +336,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	static HWND hEditAccessTokenSecret;
 	static HWND hEditMessage;
 	static HWND hButton;
-	static HFONT hFont;
 	switch (msg)
 	{
 	case WM_CREATE:
