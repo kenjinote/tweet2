@@ -742,7 +742,7 @@ class ImageListPanel {
 					if (_this->m_listBitmap.size() == 0) {
 						Gdiplus::Font font(hdc, _this->m_hFont);
 						Gdiplus::RectF rectf((Gdiplus::REAL)0, (Gdiplus::REAL)0, (Gdiplus::REAL)rect.right, (Gdiplus::REAL)rect.bottom);
-						g.DrawString(L"画像をドロップ\r\n\r\nまたは\r\n\r\nクリックして画像を選択", -1, &font, rectf, &f, &Gdiplus::SolidBrush(Gdiplus::Color::MakeARGB(128, 0, 0, 0)));
+						g.DrawString(L"画像をドロップ または クリックして画像を選択", -1, &font, rectf, &f, &Gdiplus::SolidBrush(Gdiplus::Color::MakeARGB(128, 0, 0, 0)));
 					}
 					else {
 						Gdiplus::Font font(&Gdiplus::FontFamily(L"Marlett"), 11, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
@@ -978,20 +978,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	static HWND hEditMessage;
 	static ImageListPanel* pImageListPanel;
 	static HWND hButton;
+	static HFONT hFont;
 	switch (msg)
 	{
 	case WM_CREATE:
+		hFont = CreateFontW(22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, L"Yu Gothic UI");
 		hEditConsumerKey = CreateWindowEx(0, L"EDIT", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL, 0, 0, 0, 0, hWnd, 0, ((LPCREATESTRUCT)lParam)->hInstance, 0);
 		SendMessage(hEditConsumerKey, EM_SETCUEBANNER, TRUE, (LPARAM)L"Consumer Key");
+		SendMessage(hEditConsumerKey, WM_SETFONT, (WPARAM)hFont, 0);
 		hEditConsumerSecret = CreateWindowEx(0, L"EDIT", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL, 0, 0, 0, 0, hWnd, 0, ((LPCREATESTRUCT)lParam)->hInstance, 0);
 		SendMessage(hEditConsumerSecret, EM_SETCUEBANNER, TRUE, (LPARAM)L"Consumer Secret");
+		SendMessage(hEditConsumerSecret, WM_SETFONT, (WPARAM)hFont, 0);
 		hEditAccessToken = CreateWindowEx(0, L"EDIT", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL, 0, 0, 0, 0, hWnd, 0, ((LPCREATESTRUCT)lParam)->hInstance, 0);
 		SendMessage(hEditAccessToken, EM_SETCUEBANNER, TRUE, (LPARAM)L"Access Token");
+		SendMessage(hEditAccessToken, WM_SETFONT, (WPARAM)hFont, 0);
 		hEditAccessTokenSecret = CreateWindowEx(0, L"EDIT", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL, 0, 0, 0, 0, hWnd, 0, ((LPCREATESTRUCT)lParam)->hInstance, 0);
 		SendMessage(hEditAccessTokenSecret, EM_SETCUEBANNER, TRUE, (LPARAM)L"Access Token Secret");
+		SendMessage(hEditAccessTokenSecret, WM_SETFONT, (WPARAM)hFont, 0);
 		hEditMessage = CreateWindowEx(0, L"EDIT", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | WS_TABSTOP | ES_MULTILINE | ES_AUTOHSCROLL | ES_AUTOVSCROLL, 0, 0, 0, 0, hWnd, 0, ((LPCREATESTRUCT)lParam)->hInstance, 0);
-		pImageListPanel = new ImageListPanel(4, WS_VISIBLE | WS_CHILD | WS_BORDER, 0, 0, 0, 0, hWnd, 0);
+		SendMessage(hEditMessage, WM_SETFONT, (WPARAM)hFont, 0);
+		pImageListPanel = new ImageListPanel(4, WS_VISIBLE | WS_CHILD | WS_BORDER, 0, 0, 0, 0, hWnd, hFont);
 		hButton = CreateWindow(L"BUTTON", L"ポスト", WS_VISIBLE | WS_CHILD | WS_TABSTOP, 0, 0, 0, 0, hWnd, (HMENU)IDOK, ((LPCREATESTRUCT)lParam)->hInstance, 0);
+		SendMessage(hButton, WM_SETFONT, (WPARAM)hFont, 0);
 		DragAcceptFiles(hWnd, TRUE);
 		break;
 
@@ -1147,6 +1155,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		break;
 	case WM_DESTROY:
 		delete pImageListPanel;
+		DeleteObject(hFont);
 		PostQuitMessage(0);
 		break;
 	default:
