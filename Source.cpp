@@ -436,7 +436,7 @@ std::string tweet(HWND hWnd, LPCSTR lpszOAuthParam, LPCSTR lpszMessage, const st
 		payload["media"]["media_ids"] = media_ids;
 	}
 	std::string strPayload = payload.dump();
-	return send(hWnd, L"api.twitter.com", L"/2/tweets", lpszOAuthParam, "Content-Type: application/json", (LPCBYTE)strPayload.c_str(), (DWORD)strPayload.size());
+	return send(hWnd, L"api.x.com", L"/2/tweets", lpszOAuthParam, "Content-Type: application/json", (LPCBYTE)strPayload.c_str(), (DWORD)strPayload.size());
 }
 
 class BitmapEx : public Gdiplus::Bitmap {
@@ -1105,7 +1105,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 			m["oauth_version"] = "1.0";
 			m["oauth_token"] = szAccessTokenKey;
 
-			LPSTR lpszOAuthParam = CreateOAuthPram(m, "https://api.twitter.com/2/tweets", szConsumerSecret, szAccessTokenSecret, TRUE);
+			LPSTR lpszOAuthParam = CreateOAuthPram(m, "https://api.x.com/2/tweets", szConsumerSecret, szAccessTokenSecret, TRUE);
 			if (lpszOAuthParam) {
 				std::string id;
 				DWORD size = GetWindowTextLength(hEditMessage);
