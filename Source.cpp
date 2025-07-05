@@ -1,10 +1,10 @@
 ﻿#pragma comment(linker,"\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 #pragma comment(lib, "shlwapi")
-#pragma comment(lib, "wininet")
 #pragma comment(lib, "crypt32")
 #pragma comment(lib, "gdiplus")
 #pragma comment(lib, "dwmapi")
+#pragma comment(lib, "winhttp.lib")
 
 #include <windows.h>
 #include <windowsx.h>
@@ -12,7 +12,7 @@
 #include <commctrl.h>
 #include <shlwapi.h>
 #include <shlobj.h>
-#include <wininet.h>
+#include <winhttp.h>
 #include <gdiplus.h>
 #include <map>
 #include <string>
@@ -267,121 +267,106 @@ std::string send(HWND hWnd, LPCWSTR lpszServerName, LPCWSTR lpszObjectName, LPCS
 {
 	std::string ret;
 
-	HINTERNET hInternet = InternetOpen(NULL, INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
-	if (hInternet == NULL) {
-		return ret;
-	}
-	HINTERNET hSession = InternetConnectW(hInternet, lpszServerName, INTERNET_DEFAULT_HTTPS_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
-	if (hSession == NULL) {
-		InternetCloseHandle(hInternet);
-		return ret;
-	}
-	HINTERNET hRequest = HttpOpenRequestW(hSession, L"POST", lpszObjectName, NULL, NULL, NULL, INTERNET_FLAG_NO_CACHE_WRITE | INTERNET_FLAG_SECURE, 0);
-	if (hRequest == NULL) {
-		InternetCloseHandle(hSession);
-		InternetCloseHandle(hInternet);
+	HINTERNET hSession = WinHttpOpen(L"WinHTTP_Client", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+	if (!hSession) return ret;
+
+	HINTERNET hConnect = WinHttpConnect(hSession, lpszServerName, INTERNET_DEFAULT_HTTPS_PORT, 0);
+	if (!hConnect) {
+		WinHttpCloseHandle(hSession);
 		return ret;
 	}
 
-	CHAR header[2048];
-	wsprintfA(header, "Authorization: %s;\r\n", lpszOAuthParam);
-	lstrcatA(header, lpszHeader);
+	HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", lpszObjectName, NULL, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+	if (!hRequest) {
+		WinHttpCloseHandle(hConnect);
+		WinHttpCloseHandle(hSession);
+		return ret;
+	}
 
-	if (HttpSendRequestA(hRequest, header, (DWORD)lstrlenA(header), (LPVOID)lpBody, (DWORD)dwBodySize)) {
-		BOOL bResult = FALSE;
+	std::string headers = "Authorization: ";
+	headers += lpszOAuthParam;
+	headers += "\r\n";
+	headers += lpszHeader;
 
-		DWORD dwBufferSize;
+	BOOL bResults = WinHttpSendRequest(hRequest,
+		std::wstring(headers.begin(), headers.end()).c_str(),
+		-1,
+		(LPVOID)lpBody,
+		dwBodySize,
+		dwBodySize,
+		0);
 
+	if (bResults && WinHttpReceiveResponse(hRequest, NULL)) {
 		DWORD dwStatusCode = 0;
-		dwBufferSize = sizeof(dwStatusCode);
-		HttpQueryInfoW(hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &dwStatusCode, &dwBufferSize, 0);
+		DWORD dwSize = sizeof(dwStatusCode);
+		WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, NULL, &dwStatusCode, &dwSize, NULL);
 
 		DWORD dwContentLength = 0;
-		dwBufferSize = sizeof(dwContentLength);
-		HttpQueryInfoW(hRequest, HTTP_QUERY_CONTENT_LENGTH | HTTP_QUERY_FLAG_NUMBER, &dwContentLength, &dwBufferSize, NULL);
-		if (dwContentLength > 0) {
-			LPBYTE lpByte = (LPBYTE)GlobalAlloc(0, dwContentLength + 1);
-			if (lpByte) {
-				DWORD dwReadSize;
-				InternetReadFile(hRequest, lpByte, dwContentLength, &dwReadSize);
-				lpByte[dwReadSize] = 0;
-				auto j = nlohmann::json::parse(lpByte);
+		dwSize = sizeof(dwContentLength);
+		WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, NULL, &dwContentLength, &dwSize, NULL);
 
-				if (dwStatusCode != HTTP_STATUS_OK &&
-					dwStatusCode != HTTP_STATUS_CREATED &&
-					dwStatusCode != HTTP_STATUS_ACCEPTED &&
-					dwStatusCode != HTTP_STATUS_PARTIAL &&
-					dwStatusCode != HTTP_STATUS_NO_CONTENT &&
-					dwStatusCode != HTTP_STATUS_RESET_CONTENT &&
-					dwStatusCode != HTTP_STATUS_PARTIAL_CONTENT) {
-					if (j.find("detail") != j.end()) {
-						std::string error;
-						error = "ポストできませんでした(ステータスコード:";
-						error += std::to_string(dwStatusCode);
-						error += ", エラー詳細:";
-						error += j["detail"].get<std::string>();
-						error += ")";
-						MessageBoxA(hWnd, error.c_str(), 0, MB_OK);
-					}
-					else if ((j.find("error") != j.end())) {
-						std::string error;
-						error = "ポストできませんでした(ステータスコード:";
-						error += std::to_string(dwStatusCode);
-						error += ", エラー詳細:";
-						error += j["error"].get<std::string>();
-						error += ")";
-						MessageBoxA(hWnd, error.c_str(), 0, MB_OK);
-					}
-					else if ((j.find("errors") != j.end())) {
-						std::string error;
-						error = "ポストできませんでした(ステータスコード:";
-						error += std::to_string(dwStatusCode);
-						error += ", エラー詳細:";
-						for (auto& e : j["errors"]) {
-							error += e["message"].get<std::string>();
-							error += "\n";
-						}
-						error += ")";
-						MessageBoxA(hWnd, error.c_str(), 0, MB_OK);
-					}
-					else {
-						std::string error;
-						error = "ポストできませんでした(ステータスコード:";
-						error += std::to_string(dwStatusCode);
-						error += ")";
-						MessageBoxA(hWnd, error.c_str(), 0, MB_OK);
+		std::string response;
+		DWORD dwDownloaded = 0;
+		do {
+			DWORD dwSize = 0;
+			WinHttpQueryDataAvailable(hRequest, &dwSize);
+			if (dwSize == 0) break;
+
+			BYTE* buffer = new BYTE[dwSize + 1];
+			ZeroMemory(buffer, dwSize + 1);
+			WinHttpReadData(hRequest, buffer, dwSize, &dwDownloaded);
+			response.append((char*)buffer, dwDownloaded);
+			delete[] buffer;
+		} while (dwDownloaded > 0);
+
+		try {
+			auto j = nlohmann::json::parse(response);
+
+			if (dwStatusCode != HTTP_STATUS_OK &&
+				dwStatusCode != HTTP_STATUS_CREATED &&
+				dwStatusCode != HTTP_STATUS_ACCEPTED &&
+				dwStatusCode != HTTP_STATUS_PARTIAL &&
+				dwStatusCode != HTTP_STATUS_NO_CONTENT &&
+				dwStatusCode != HTTP_STATUS_RESET_CONTENT &&
+				dwStatusCode != HTTP_STATUS_PARTIAL_CONTENT) {
+
+				std::string error = "ポストできませんでした(ステータスコード:" + std::to_string(dwStatusCode);
+				if (j.contains("detail")) {
+					error += ", エラー詳細:" + j["detail"].get<std::string>();
+				}
+				else if (j.contains("error")) {
+					error += ", エラー詳細:" + j["error"].get<std::string>();
+				}
+				else if (j.contains("errors")) {
+					for (auto& e : j["errors"]) {
+						error += e["message"].get<std::string>() + "\n";
 					}
 				}
-				else {
-					if (j.find("media_id_string") != j.end()) {
-						ret = j["media_id_string"];
-					}
-					else if (j.find("data") != j.end()) {
-						auto data = j["data"];
-						if (data.find("id") != data.end()) {
-							ret = data["id"];
-						}
-					}
+				error += ")";
+				MessageBoxA(hWnd, error.c_str(), 0, MB_OK);
+			}
+			else {
+				if (j.contains("media_id_string")) {
+					ret = j["media_id_string"];
 				}
-
-				GlobalFree(lpByte);
+				else if (j.contains("data") && j["data"].contains("id")) {
+					ret = j["data"]["id"];
+				}
 			}
 		}
-		else {
-			std::string error;
-			error = "ポストできませんでした(ステータスコード:";
-			error += std::to_string(dwStatusCode);
-			error += ")";
+		catch (...) {
+			std::string error = "レスポンスの解析に失敗しました(ステータスコード:" + std::to_string(dwStatusCode) + ")";
 			MessageBoxA(hWnd, error.c_str(), 0, MB_OK);
 		}
 	}
 
-	InternetCloseHandle(hRequest);
-	InternetCloseHandle(hSession);
-	InternetCloseHandle(hInternet);
+	WinHttpCloseHandle(hRequest);
+	WinHttpCloseHandle(hConnect);
+	WinHttpCloseHandle(hSession);
 
 	return ret;
 }
+
 
 std::string image_upload(HWND hWnd, LPCSTR lpszOAuthParam, LPCBYTE lpByte)
 {
